@@ -1,32 +1,43 @@
 #!/bin/bash
 
 # ==========================================================
-# TODAY's country-wise traffic from Nginx access logs
-# Cloudways-safe | Handles .gz logs | No join | GeoIP legacy
+# TODAY's traffic by country (best-effort)
+# - Auto-checks geoiplookup
+# - Attempts apt install if missing
+# - IPv6 handled explicitly
+# - Always quiet
 # ==========================================================
 
 LOG_DIR="$(pwd)"
 TODAY=$(date +"%d/%b/%Y")
 
-IP_COUNTS="/tmp/ip_counts_today.txt"
-IP_COUNTRY="/tmp/ip_country_full_today.tsv"
-COUNTRY_HITS="/tmp/country_hits_today.tsv"
+TMP_DIR="$(pwd)/.traffic_tmp_$$"
+mkdir -p "$TMP_DIR" || exit 1
+trap 'rm -rf "$TMP_DIR"' EXIT
 
-echo "=================================================="
-echo "Date       : $TODAY"
-echo "Log source : $LOG_DIR"
-echo "=================================================="
+IP_COUNTS="$TMP_DIR/ip_counts.txt"
+IP_COUNTRY="$TMP_DIR/ip_country.tsv"
+COUNTRY_HITS="$TMP_DIR/country_hits.tsv"
 
 # ----------------------------------------------------------
-# 1) Extract TODAY's IP hit counts from access logs
+# 0) Ensure geoiplookup exists (best-effort)
 # ----------------------------------------------------------
-echo "[1/4] Extracting today's IP hit counts..."
+HAS_GEOIP=1
+if ! command -v geoiplookup >/dev/null 2>&1; then
+  HAS_GEOIP=0
 
+  # Try apt-based install only
+  if command -v apt-get >/dev/null 2>&1; then
+    apt-get update -qq && apt-get install -y -qq geoip-bin >/dev/null 2>&1
+    command -v geoiplookup >/dev/null 2>&1 && HAS_GEOIP=1
+  fi
+fi
+
+# ----------------------------------------------------------
+# 1) Extract TODAY's IP hit counts
+# ----------------------------------------------------------
 (
-  # Plain access logs
   grep -h "\[$TODAY:" "$LOG_DIR"/*access.log 2>/dev/null
-
-  # Rotated gzip access logs
   zgrep -h "\[$TODAY:" "$LOG_DIR"/*access.log.*.gz 2>/dev/null
 ) \
 | awk '{print $1}' \
@@ -35,17 +46,27 @@ echo "[1/4] Extracting today's IP hit counts..."
 | awk '{print $2 "\t" $1}' \
 > "$IP_COUNTS"
 
-echo "  → IP counts written to $IP_COUNTS"
+[ ! -s "$IP_COUNTS" ] && exit 0
 
 # ----------------------------------------------------------
-# 2) Map IPs to countries using geoiplookup
+# 2) Map IPs to countries (best-effort)
 # ----------------------------------------------------------
-echo "[2/4] Mapping IPs to countries..."
-
 while read -r ip count; do
+  # IPv6 detection
+  if [[ "$ip" == *:* ]]; then
+    echo -e "$ip\tIPv6\tUnresolved"
+    continue
+  fi
+
+  # No GeoIP available
+  if [ "$HAS_GEOIP" -eq 0 ]; then
+    echo -e "$ip\tUnknown\tGeoIP missing"
+    continue
+  fi
+
   geoiplookup "$ip" | awk -v ip="$ip" '
     /GeoIP Country Edition:/ {
-      if ($0 ~ /not found|can.t resolve|IP Address/) {
+      if ($0 ~ /not found|IP Address/) {
         cc="Unknown"; cname="Unknown"
       } else {
         split($0, a, ": ")
@@ -61,25 +82,17 @@ while read -r ip count; do
     }'
 done < "$IP_COUNTS" > "$IP_COUNTRY"
 
-echo "  → IP-to-country map written to $IP_COUNTRY"
-
 # ----------------------------------------------------------
-# 3) Aggregate today's hits by country (AWK hash map)
+# 3) Aggregate by country (informational only)
 # ----------------------------------------------------------
-echo "[3/4] Aggregating today's traffic by country..."
-
 awk '
   NR==FNR {
-    ip_cc[$1] = $2 "\t" $3
+    ip_cc[$1]=$2"\t"$3
     next
   }
   {
     split(ip_cc[$1], c, "\t")
-    if (c[1] == "") {
-      c[1] = "Unknown"
-      c[2] = "Unknown"
-    }
-    totals[c[1] "\t" c[2]] += $2
+    totals[c[1]"\t"c[2]] += $2
   }
   END {
     for (k in totals)
@@ -88,14 +101,7 @@ awk '
 ' "$IP_COUNTRY" "$IP_COUNTS" \
 | sort -nr -k3,3 > "$COUNTRY_HITS"
 
-echo "  → Country totals written to $COUNTRY_HITS"
-
 # ----------------------------------------------------------
-# 4) Display result
+# 4) Output
 # ----------------------------------------------------------
-echo
-echo "TODAY'S TRAFFIC BY COUNTRY"
-echo "--------------------------------------------------"
 column -t "$COUNTRY_HITS"
-echo "--------------------------------------------------"
-echo "Done."
