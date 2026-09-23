@@ -22,16 +22,20 @@ printf "Save output to a text file on Proxy Server? [y/N]: "
 read -r SAVE_LOG < /dev/tty
 SAVE_LOG=$(echo "$SAVE_LOG" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
 
-LOG_OUTPUT_FILE=""
+LOG_OUTPUT_PATH=""
 if [[ "$SAVE_LOG" == "y" || "$SAVE_LOG" == "yes" ]]; then
     printf "Enter proxy log filename (default: live_stream.log): "
     read -r LOG_OUTPUT_FILE < /dev/tty
     LOG_OUTPUT_FILE=$(echo "$LOG_OUTPUT_FILE" | tr -d '[:space:]')
-    [ -z "$LOG_OUTPUT_FILE" ] && LOG_OUTPUT_FILE="live_stream.log"
     
-    # Save dynamically in current working directory
+    # If empty or accidental 'y', fall back to default
+    if [[ -z "$LOG_OUTPUT_FILE" || "$LOG_OUTPUT_FILE" == "y" || "$LOG_OUTPUT_FILE" == "yes" ]]; then
+        LOG_OUTPUT_FILE="live_stream.log"
+    fi
+    
+    # Save dynamically in the current executing directory
     LOG_OUTPUT_PATH="${PWD}/${LOG_OUTPUT_FILE}"
-    echo "Live stream will also be saved to: ${LOG_OUTPUT_PATH}"
+    echo "Live stream will be saved to: ${LOG_OUTPUT_PATH}"
 fi
 
 echo
@@ -214,10 +218,9 @@ timeout 60s stdbuf -oL -eL tail -n 5 -F $LOG_FILES 2>/devnull | awk \
 
     active_app = (current_app != "") ? current_app : a1
 
-    # Increment real-time IP hit counter per pool
+    # Real-time IP hit tracking per pool
     if (ip != "" && active_app != "") {
         ip_hits[active_app, ip]++
-        total_hits[active_app]++
     }
 
     color_row = c_reset
@@ -234,7 +237,6 @@ timeout 60s stdbuf -oL -eL tail -n 5 -F $LOG_FILES 2>/devnull | awk \
     if (ip == myip) {
         ip_label = c_red ip " [SERVER IP]" color_row
     } else {
-        # Append dynamic hit count for high-frequency IPs (>= 3 hits)
         cnt = ip_hits[active_app, ip]
         if (cnt >= 3) {
             ip_label = sprintf("%s (%d hits)", ip, cnt)
