@@ -7,8 +7,12 @@ echo " CLOUDWAYS DYNAMIC LIVE TRAFFIC STREAMER"
 echo "=============================================="
 echo
 
-# Prompt only for Target Server IP
-read -r -p "Enter Target Server IP: " TARGET_IP
+# Read from /dev/tty to support pipe execution (curl | bash)
+if [ -t 0 ]; then
+    read -r -p "Enter Target Server IP: " TARGET_IP
+else
+    read -r -p "Enter Target Server IP: " TARGET_IP < /dev/tty
+fi
 TARGET_IP=$(echo "$TARGET_IP" | tr -d '[:space:]')
 
 if [ -z "$TARGET_IP" ]; then
@@ -17,12 +21,20 @@ if [ -z "$TARGET_IP" ]; then
     exit 1
 fi
 
-read -r -p "Save output to a text file on Proxy Server? [y/N]: " SAVE_LOG
+if [ -t 0 ]; then
+    read -r -p "Save output to a text file on Proxy Server? [y/N]: " SAVE_LOG
+else
+    read -r -p "Save output to a text file on Proxy Server? [y/N]: " SAVE_LOG < /dev/tty
+fi
 SAVE_LOG=$(echo "$SAVE_LOG" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
 
 LOG_OUTPUT_FILE=""
 if [[ "$SAVE_LOG" == "y" || "$SAVE_LOG" == "yes" ]]; then
-    read -r -p "Enter proxy log filename (default: live_stream.log): " LOG_OUTPUT_FILE
+    if [ -t 0 ]; then
+        read -r -p "Enter proxy log filename (default: live_stream.log): " LOG_OUTPUT_FILE
+    else
+        read -r -p "Enter proxy log filename (default: live_stream.log): " LOG_OUTPUT_FILE < /dev/tty
+    fi
     LOG_OUTPUT_FILE=$(echo "$LOG_OUTPUT_FILE" | tr -d '[:space:]')
     [ -z "$LOG_OUTPUT_FILE" ] && LOG_OUTPUT_FILE="live_stream.log"
     echo "Live stream will also be saved to: /home/sca/${LOG_OUTPUT_FILE}"
@@ -95,7 +107,7 @@ echo
 
 LOG_FILES=""
 for APP in $APP1 $APP2 $APP3; do
-    MATCH=$(find "/home/master/applications/${APP}/logs" -maxdepth 1 -type f -name 'backend_wordpress-*.access.log' ! -name '*.gz' 2>/dev/null | head -n 1)
+    MATCH=$(find "/home/master/applications/${APP}/logs" -maxdepth 1 -type f -name 'backend_wordpress-*.access.log' ! -name '*.gz' 2>/devnull | head -n 1)
     if [ -n "$MATCH" ]; then
         LOG_FILES="$LOG_FILES $MATCH"
     fi
@@ -115,7 +127,7 @@ C_BG_RED="\033[41;1;37m"
 C_RESET="\033[0m"
 
 # Stream line-by-line for 60s, showing last 5 log lines for immediate context
-timeout 60s stdbuf -oL -eL tail -n 5 -F $LOG_FILES 2>/dev/null | awk \
+timeout 60s stdbuf -oL -eL tail -n 5 -F $LOG_FILES 2>/devnull | awk \
   -v myip="$SERVER_IP" \
   -v a1="$APP1" -v a2="$APP2" -v a3="$APP3" \
   -v c_a1="$C_CYAN" -v c_a2="$C_YELLOW" -v c_a3="$C_MAGENTA" \
