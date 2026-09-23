@@ -88,19 +88,30 @@ if [ -z "$APP1" ]; then
     exit 1
 fi
 
-# Function to get top IP for a pool
-get_top_ip() {
+# Function to extract top client IP and hit count from recent logs
+get_top_ip_summary() {
     local app="$1"
-    local log_f
-    log_f=$(find "/home/master/applications/${app}/logs" -maxdepth 1 -type f -name 'backend_wordpress-*.access.log' ! -name '*.gz' 2>/devnull | head -n 1)
-    if [ -n "$log_f" ]; then
-        tail -n 1000 "$log_f" 2>/devnull | awk -v sip="$SERVER_IP" '$1 != sip && $1 ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/ {hits[$1]++} END {for (i in hits) print hits[i], i}' | sort -nr | head -n 1 | awk '{print $2 " (" $1 " hits)"}'
+    local log_file
+    log_file=$(find "/home/master/applications/${app}/logs" -maxdepth 1 -type f -name 'backend_wordpress-*.access.log' ! -name '*.gz' 2>/devnull | head -n 1)
+    if [ -n "$log_file" ]; then
+        tail -n 1000 "$log_file" 2>/devnull | awk -v sip="$SERVER_IP" '
+        $1 != sip && $1 ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/ { hits[$1]++ }
+        END {
+            max=0; top=""
+            for (ip in hits) {
+                if (hits[ip] > max) { max=hits[ip]; top=ip }
+            }
+            if (top != "") printf "%s (%d hits)", top, max
+            else print "None"
+        }'
+    else
+        echo "None"
     fi
 }
 
-IP1=$(get_top_ip "$APP1")
-IP2=$(get_top_ip "$APP2")
-IP3=$(get_top_ip "$APP3")
+IP1=$(get_top_ip_summary "$APP1")
+IP2=$(get_top_ip_summary "$APP2")
+IP3=$(get_top_ip_summary "$APP3")
 
 echo "========================================================================================================================="
 echo " CLOUDWAYS LIVE TRAFFIC MONITOR | SERVER IP: $SERVER_IP"
@@ -230,7 +241,7 @@ timeout 60s stdbuf -oL -eL tail -n 5 -F $LOG_FILES 2>/devnull | awk \
 
     active_app = (current_app != "") ? current_app : a1
 
-    # Real-time IP hit tracking per pool
+    # Increment real-time IP hit counter per pool
     if (ip != "" && active_app != "") {
         ip_hits[active_app, ip]++
     }
