@@ -7,12 +7,9 @@ echo " CLOUDWAYS DYNAMIC LIVE TRAFFIC STREAMER"
 echo "=============================================="
 echo
 
-# Read from /dev/tty to support pipe execution (curl | bash)
-if [ -t 0 ]; then
-    read -r -p "Enter Target Server IP: " TARGET_IP
-else
-    read -r -p "Enter Target Server IP: " TARGET_IP < /dev/tty
-fi
+# Explicitly read from /dev/tty to support 'curl | bash'
+printf "Enter Target Server IP: "
+read -r TARGET_IP < /dev/tty
 TARGET_IP=$(echo "$TARGET_IP" | tr -d '[:space:]')
 
 if [ -z "$TARGET_IP" ]; then
@@ -21,20 +18,14 @@ if [ -z "$TARGET_IP" ]; then
     exit 1
 fi
 
-if [ -t 0 ]; then
-    read -r -p "Save output to a text file on Proxy Server? [y/N]: " SAVE_LOG
-else
-    read -r -p "Save output to a text file on Proxy Server? [y/N]: " SAVE_LOG < /dev/tty
-fi
+printf "Save output to a text file on Proxy Server? [y/N]: "
+read -r SAVE_LOG < /dev/tty
 SAVE_LOG=$(echo "$SAVE_LOG" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
 
 LOG_OUTPUT_FILE=""
 if [[ "$SAVE_LOG" == "y" || "$SAVE_LOG" == "yes" ]]; then
-    if [ -t 0 ]; then
-        read -r -p "Enter proxy log filename (default: live_stream.log): " LOG_OUTPUT_FILE
-    else
-        read -r -p "Enter proxy log filename (default: live_stream.log): " LOG_OUTPUT_FILE < /dev/tty
-    fi
+    printf "Enter proxy log filename (default: live_stream.log): "
+    read -r LOG_OUTPUT_FILE < /dev/tty
     LOG_OUTPUT_FILE=$(echo "$LOG_OUTPUT_FILE" | tr -d '[:space:]')
     [ -z "$LOG_OUTPUT_FILE" ] && LOG_OUTPUT_FILE="live_stream.log"
     echo "Live stream will also be saved to: /home/sca/${LOG_OUTPUT_FILE}"
