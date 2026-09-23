@@ -28,7 +28,10 @@ if [[ "$SAVE_LOG" == "y" || "$SAVE_LOG" == "yes" ]]; then
     read -r LOG_OUTPUT_FILE < /dev/tty
     LOG_OUTPUT_FILE=$(echo "$LOG_OUTPUT_FILE" | tr -d '[:space:]')
     [ -z "$LOG_OUTPUT_FILE" ] && LOG_OUTPUT_FILE="live_stream.log"
-    echo "Live stream will also be saved to: /home/sca/${LOG_OUTPUT_FILE}"
+    
+    # Save dynamically in current working directory
+    LOG_OUTPUT_PATH="${PWD}/${LOG_OUTPUT_FILE}"
+    echo "Live stream will also be saved to: ${LOG_OUTPUT_PATH}"
 fi
 
 echo
@@ -236,7 +239,7 @@ timeout 60s stdbuf -oL -eL tail -n 5 -F $LOG_FILES 2>/devnull | awk \
 }'
 REMOTE_SCRIPT
 )
-  } | if [ -n "$LOG_OUTPUT_FILE" ]; then tee -a "$LOG_OUTPUT_FILE"; else cat; fi
+  } | if [ -n "$LOG_OUTPUT_PATH" ]; then tee -a "$LOG_OUTPUT_PATH"; else cat; fi
 
   sleep 1
 done
