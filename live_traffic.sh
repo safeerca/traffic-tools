@@ -88,13 +88,27 @@ if [ -z "$APP1" ]; then
     exit 1
 fi
 
-echo "========================================================================================================="
+# Function to get top IP for a pool
+get_top_ip() {
+    local app="$1"
+    local log_f
+    log_f=$(find "/home/master/applications/${app}/logs" -maxdepth 1 -type f -name 'backend_wordpress-*.access.log' ! -name '*.gz' 2>/devnull | head -n 1)
+    if [ -n "$log_f" ]; then
+        tail -n 1000 "$log_f" 2>/devnull | awk -v sip="$SERVER_IP" '$1 != sip && $1 ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/ {hits[$1]++} END {for (i in hits) print hits[i], i}' | sort -nr | head -n 1 | awk '{print $2 " (" $1 " hits)"}'
+    fi
+}
+
+IP1=$(get_top_ip "$APP1")
+IP2=$(get_top_ip "$APP2")
+IP3=$(get_top_ip "$APP3")
+
+echo "========================================================================================================================="
 echo " CLOUDWAYS LIVE TRAFFIC MONITOR | SERVER IP: $SERVER_IP"
 echo " Detected Top CPU Pools at $(date -u '+%H:%M:%S UTC'):"
-[ -n "$APP1" ] && printf "   - Pool 1 (Cyan)   : %-12s | CPU: %5.1f%% | MEM: %4.1f%%\n" "$APP1" "${CPU1:-0.0}" "${MEM1:-0.0}"
-[ -n "$APP2" ] && printf "   - Pool 2 (Yellow) : %-12s | CPU: %5.1f%% | MEM: %4.1f%%\n" "$APP2" "${CPU2:-0.0}" "${MEM2:-0.0}"
-[ -n "$APP3" ] && printf "   - Pool 3 (Magenta): %-12s | CPU: %5.1f%% | MEM: %4.1f%%\n" "$APP3" "${CPU3:-0.0}" "${MEM3:-0.0}"
-echo "========================================================================================================="
+[ -n "$APP1" ] && printf "   - Pool 1 (Cyan)   : %-12s | CPU: %5.1f%% | MEM: %4.1f%% | Top IP: %s\n" "$APP1" "${CPU1:-0.0}" "${MEM1:-0.0}" "${IP1:-None}"
+[ -n "$APP2" ] && printf "   - Pool 2 (Yellow) : %-12s | CPU: %5.1f%% | MEM: %4.1f%% | Top IP: %s\n" "$APP2" "${CPU2:-0.0}" "${MEM2:-0.0}" "${IP2:-None}"
+[ -n "$APP3" ] && printf "   - Pool 3 (Magenta): %-12s | CPU: %5.1f%% | MEM: %4.1f%% | Top IP: %s\n" "$APP3" "${CPU3:-0.0}" "${MEM3:-0.0}" "${IP3:-None}"
+echo "========================================================================================================================="
 echo
 
 LOG_FILES=""
