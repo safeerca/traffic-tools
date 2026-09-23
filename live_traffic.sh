@@ -28,12 +28,10 @@ if [[ "$SAVE_LOG" == "y" || "$SAVE_LOG" == "yes" ]]; then
     read -r LOG_OUTPUT_FILE < /dev/tty
     LOG_OUTPUT_FILE=$(echo "$LOG_OUTPUT_FILE" | tr -d '[:space:]')
     
-    # If empty or accidental 'y', fall back to default
     if [[ -z "$LOG_OUTPUT_FILE" || "$LOG_OUTPUT_FILE" == "y" || "$LOG_OUTPUT_FILE" == "yes" ]]; then
         LOG_OUTPUT_FILE="live_stream.log"
     fi
     
-    # Save dynamically in the current executing directory
     LOG_OUTPUT_PATH="${PWD}/${LOG_OUTPUT_FILE}"
     echo "Live stream will be saved to: ${LOG_OUTPUT_PATH}"
 fi
