@@ -214,6 +214,12 @@ timeout 60s stdbuf -oL -eL tail -n 5 -F $LOG_FILES 2>/devnull | awk \
 
     active_app = (current_app != "") ? current_app : a1
 
+    # Increment real-time IP hit counter per pool
+    if (ip != "" && active_app != "") {
+        ip_hits[active_app, ip]++
+        total_hits[active_app]++
+    }
+
     color_row = c_reset
     if (active_app == a1) color_row = c_a1
     else if (active_app == a2) color_row = c_a2
@@ -228,7 +234,13 @@ timeout 60s stdbuf -oL -eL tail -n 5 -F $LOG_FILES 2>/devnull | awk \
     if (ip == myip) {
         ip_label = c_red ip " [SERVER IP]" color_row
     } else {
-        ip_label = ip
+        # Append dynamic hit count for high-frequency IPs (>= 3 hits)
+        cnt = ip_hits[active_app, ip]
+        if (cnt >= 3) {
+            ip_label = sprintf("%s (%d hits)", ip, cnt)
+        } else {
+            ip_label = ip
+        }
     }
 
     if (method != "" && active_app != "") {
